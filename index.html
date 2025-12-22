@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Five Nights At Starr's</title>
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.0/brython.min.js"></script>
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.0/brython_stdlib.js"></script>
     <style>
         body { background-color: black; color: #FFFB00; font-family: 'Courier New', Courier, monospace; display: flex; flex-direction: column; align-items: center; height: 100vh; margin: 0; padding: 10px; overflow: hidden; }
-        h1 { color: #FFFB00; text-shadow: 0px 0px 10px #FFFB00; margin: 5px; font-size: 24px; text-align: center; }
+        h1 { color: #FFFB00; text-shadow: 0px 0px 10px #FFFB00; margin: 5px; font-size: 24px; text-align: center; letter-spacing: 2px; }
         #input-area { display: flex; width: 95%; max-width: 600px; margin-bottom: 10px; z-index: 100; }
         #user-input { flex-grow: 1; background: #111; color: #FFFB00; border: 2px solid #FFFB00; padding: 12px; font-size: 18px; outline: none; border-radius: 0; }
         #send-btn { background: #FFFB00; color: black; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; }
@@ -15,19 +15,19 @@
         .beating-heart { font-size: 45px; color: #FFFB00; display: block; margin: 20px auto; animation: beat 0.8s infinite; text-align: center; }
         .victory-flash { animation: flash 0.4s infinite; font-size: 50px; text-align: center; margin-top: 40px; font-weight: bold; }
         @keyframes flash { 0%, 100% { color: #FFFB00; opacity: 1; } 50% { color: #FFF; opacity: 0.5; } }
-        @keyframes beat { 0% { transform: scale(1); } 15% { transform: scale(1.3); } 30% { transform: scale(1); } 45% { transform: scale(1.15); } 60% { transform: scale(1); } }
+        @keyframes beat { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body onload="brython()">
     <h1>FIVE NIGHTS AT STARR'S</h1>
     <div id="input-area">
-        <input type="text" id="user-input" placeholder="Type command..." autocomplete="off">
+        <input type="text" id="user-input" placeholder="Enter move..." autocomplete="off" autofocus>
         <button id="send-btn">SEND</button>
     </div>
     <div id="game-output">
         <div style="text-align:center; padding: 20px;">
             <div class="beating-heart">💛</div>
-            <p>INITIALIZING SYSTEMS...</p>
+            <p>INITIALIZING STARR OS...</p>
         </div>
     </div>
 
@@ -36,19 +36,26 @@ from browser import document, window, timer
 import random
 import json
 
-# --- GLOBAL GAME STATE ---
+# --- GLOBAL GAME DATA ---
 stats = {"tix": 0, "night": 1, "custom_unlocked": False, "extra_power": False, "vent_stopper": False, "vent_alarm": False, "sys_shutdown": False, "triple_tix": False, "beat_boss": False}
 n_data = {}
 state = "MENU"
 
-# Death Quotes
+# Save System
+def save_game():
+    window.localStorage["starrs_save"] = json.dumps(stats)
+
+if "starrs_save" in window.localStorage:
+    try: stats.update(json.loads(window.localStorage["starrs_save"]))
+    except: pass
+
 quotes = {
-    "baby": ["Enjoy your last lullaby...", "The star has to outshine the rest...", "You won't steal my spotlight anymore..!"],
-    "scrap": ["I'll turn you into garbage.!!", "Who's the real trash now...?", "Hah! I won't sing for you.. You're worthless..!!"],
-    "endo": ["Can I use your skin..? I lost mine...", "Let me crawl inside you like a suit...", "You have some nice features..."],
-    "power": ["You stole your own spotlight..!", "Thanks for letting me in friend..!", "Lights out... for you..."],
-    "golden": ["I am the luxury.. the gold standard...", "You're just a part of my new suit...", "Spotlights fade... But gold is forever..."],
-    "boss_power": ["Gold still shines in the dark...", "The circuit is broken... And so are you...", "Silence is golden..."]
+    "baby": ["Enjoy your last lullaby...", "The star has to outshine the rest..."],
+    "scrap": ["I'll turn you into garbage.!!", "Who's the real trash now...?"],
+    "endo": ["Can I use your skin..? I lost mine...", "Let me crawl inside you like a suit..."],
+    "power": ["You stole your own spotlight..!", "Lights out... for you..."],
+    "golden": ["I am the luxury.. the gold standard...", "Spotlights fade... But gold is forever..."],
+    "boss_power": ["Gold still shines in the dark...", "The circuit is broken... And so are you..."]
 }
 
 # --- AUDIO ENGINE ---
@@ -69,13 +76,11 @@ def play_sound(f_start, f_end, dur, wav="sawtooth", vol=0.2):
 def play_bang():
     for i in [0, 0.15]: play_sound(70, 60, 0.1, "square", 0.4)
 
-def play_alarm():
-    if stats["vent_alarm"]: play_sound(880, 880, 0.1, "sine", 0.1)
-
 # --- MENU & NAVIGATION ---
 def show_menu():
     global state
     state = "MENU"
+    save_game()
     out = document["game-output"]
     out.html = '<div style="text-align:center;"><div class="beating-heart">💛</div></div>'
     header = f"\nTickets: {stats['tix']} | Progress: Night {stats['night']}\n"
@@ -85,27 +90,26 @@ def show_menu():
     if stats["custom_unlocked"]: out.text += "\n5) CUSTOM NIGHT"
     out.text += "\n6) RESET DATA"
 
-def start_night(mode="REGULAR", diff_val=0):
+def start_night(mode="REGULAR", d_val=0):
     global state, n_data
     state = "PLAYING"
-    is_boss = (mode == "BOSS")
+    is_b = (mode == "BOSS")
     n_data = {
         "pwr": 150 if stats["extra_power"] else 100, "hr": 12, "turn": 0,
         "corrupt": 0, "endo": 0, "baby_idx": 0, "l_door": False, 
-        "r_door": False, "scrap": False, "diff": diff_val if mode=="CUSTOM" else (20 if is_boss else stats["night"] + 2), 
-        "side": random.choice(["Left", "Right"]), "is_boss": is_boss, "baby_wait": 0, "endo_wait": 0, "scrap_wait": 0,
+        "r_door": False, "scrap": False, "diff": d_val if mode=="CUSTOM" else (20 if is_b else stats["night"] + 2), 
+        "side": random.choice(["Left", "Right"]), "is_boss": is_b, "baby_wait": 0, "scrap_wait": 0,
         "path": ["Stage", "Main Arcade", "Play Area", "Hallway", "Office Door"]
     }
-    document["game-output"].text = f"--- {mode} MODE: Level {n_data['diff']} ---\n"
     update_night()
 
 def update_night():
     n = n_data
-    print(f"\n[{n['hr']} AM] [PWR: {int(n['pwr'])}%]")
-    if stats["vent_alarm"] and n["endo"] >= 4: 
-        print(">> [!] VENT ALARM BEEPING [!] <<")
-        play_alarm()
-    print("0:Wait 1:Cams 2:Listen 3:L-Door 4:R-Door 5:Vent 6:Reset")
+    document["game-output"].text = f"\n[{n['hr']} AM] [PWR: {int(n['pwr'])}%]\n"
+    if stats["vent_alarm"] and n["endo"] >= 4:
+        document["game-output"].text += ">> [!] VENT ALARM BEEPING [!] <<\n"
+        play_sound(880, 880, 0.1, "sine", 0.1)
+    document["game-output"].text += "0:Wait 1:Cams 2:Listen 3:L-Door 4:R-Door 5:Vent 6:Reset"
 
 # --- GAME OVER / WIN LOGIC ---
 def j_scare(cat):
@@ -119,7 +123,7 @@ def win_screen():
     play_sound(440, 880, 1.2, "sine", 0.2)
     def finalize():
         if n_data["is_boss"]:
-            document["game-output"].text = "STARR ARCADE: CLOSING LOG\n\nGolden Starr has been disconnected.\nThe Luxury Suite is now vacant.\n\nYou have outlasted the gold standard.\n\n[SECRET ENDING ACHIEVED]"
+            document["game-output"].text = "STARR ARCADE: FINAL LOG\n\nGolden Starr has been deactivated. The circuit is broken. The spirits within the machines have faded.\n\nYou have survived the Gold Standard.\n\n[STORY COMPLETE - CUSTOM NIGHT UNLOCKED]"
             stats["beat_boss"] = True; stats["custom_unlocked"] = True; timer.set_timeout(show_menu, 9000)
         else:
             stats["night"] += 1; stats["tix"] += 450 if stats["triple_tix"] else 150; show_menu()
@@ -132,52 +136,58 @@ def handle_input(ev):
     document["user-input"].value = ""
     
     if state == "MENU":
-        if cmd == "1": start_night("REGULAR")
+        if cmd == "1": start_night()
         elif cmd == "4" and stats["night"] >= 6: start_night("BOSS")
         elif cmd == "5" and stats["custom_unlocked"]:
             document["game-output"].text = "Set Difficulty (1-20):"; state = "CUSTOM_SET"
         elif cmd == "2":
             state = "SHOP"
-            document["game-output"].text = f"\nTix: {stats['tix']}\n1)Pwr(150) 2)Stop(150) 3)Vent Alarm(150) 4)Reset(150) 5)3xTix(200) 6)BACK"
-        elif cmd == "6": stats.update({"tix":0,"night":1,"custom_unlocked":False,"beat_boss":False}); show_menu()
+            document["game-output"].text = f"\nTix: {stats['tix']}\n1)Pwr(150) 2)Stop(150) 3)Alarm(150) 4)Reset(150) 5)3xTix(200) 6)BACK"
+        elif cmd == "6": 
+            if window.confirm("Reset all progress?"):
+                stats.update({"tix":0,"night":1,"custom_unlocked":False,"beat_boss":False})
+                save_game(); show_menu()
     
     elif state == "SHOP":
         prices = {"1":150, "2":150, "3":150, "4":150, "5":200}
         items = {"1":"extra_power", "2":"vent_stopper", "3":"vent_alarm", "4":"sys_shutdown", "5":"triple_tix"}
         if cmd in items and stats["tix"] >= prices[cmd]:
-            stats[items[cmd]] = True; stats["tix"] -= prices[cmd]; print("PURCHASED!"); show_menu()
+            stats[items[cmd]] = True; stats["tix"] -= prices[cmd]; show_menu()
         elif cmd == "6": show_menu()
 
     elif state == "CUSTOM_SET":
-        try: 
-            val = int(cmd)
-            if 1 <= val <= 20: start_night("CUSTOM", val)
-            else: show_menu()
+        try: start_night("CUSTOM", int(cmd))
         except: show_menu()
 
     elif state == "PLAYING":
         n = n_data
-        # Turn Power Usage
-        drain = (0.5 if cmd == "0" else 1.3) + (2.2 if (n["l_door"] or n["r_door"]) else 0)
-        n["pwr"] -= drain
+        n["pwr"] -= (0.5 if cmd == "0" else 1.3) + (2.2 if (n["l_door"] or n["r_door"]) else 0)
         n["turn"] += 1
         if n["turn"] >= 8: n["turn"] = 0; n["hr"] = 1 if n["hr"] == 12 else n["hr"] + 1
 
-        # Combat Actions
         if cmd == "1":
             loc = n['path'][n['baby_idx']] if n['baby_idx'] < 4 else f"{n['side']} Door"
-            print(f"Cam: Baby @ {loc} | Vent: {n['endo']}/5 | Corrupt: {n['corrupt']}/5")
+            document["game-output"].text += f"\nCam: Baby @ {loc} | Vent: {n['endo']}/5"
         elif cmd == "3": n["l_door"] = not n["l_door"]; n["r_door"] = False; play_sound(80, 50, 0.1, "square")
         elif cmd == "4": n["r_door"] = not n["r_door"]; n["l_door"] = False; play_sound(80, 50, 0.1, "square")
         elif cmd == "5":
-            if n["endo"] >= 3: n["endo"] = 0; print("Snared!"); play_sound(400, 100, 0.2, "sine")
+            if n["endo"] >= 3: n["endo"] = 0; play_sound(400, 100, 0.2, "sine")
             else: j_scare("endo")
         elif cmd == "6":
             req = 3 if stats["sys_shutdown"] else 4
-            if n["is_boss"]: req = 5
-            if n["corrupt"] >= req: n["corrupt"] = 0; n["scrap"] = False; print("Reset!"); play_sound(200, 1500, 0.2, "square")
+            if n["corrupt"] >= req: n["corrupt"] = 0; n["scrap"] = False; play_sound(200, 1500, 0.2, "square")
 
         # AI LOGIC
+        if n["baby_idx"] == 4:
+            dr = n["l_door"] if n["side"] == "Left" else n["r_door"]
+            if not dr: 
+                n["baby_wait"] += 1
+                if n["baby_wait"] >= (1 if n["is_boss"] else 2): j_scare("golden" if n["is_boss"] else "baby")
+            else:
+                n["baby_wait"] += 1; play_bang()
+                if n["baby_wait"] >= 4: n["baby_idx"] = 0; n["baby_wait"] = 0; n["side"] = random.choice(["Left", "Right"])
+        elif random.randint(1, 10) < n["diff"]: n["baby_idx"] += 1
+        
         if n["scrap"]:
             n["scrap_wait"] += 1
             if n["scrap_wait"] >= 2: j_scare("golden" if n["is_boss"] else "scrap")
@@ -185,33 +195,17 @@ def handle_input(ev):
             n["corrupt"] += 1
             if n["corrupt"] >= 5: n["scrap"] = True
 
-        if n["endo"] >= 5:
-            n["endo_wait"] += 1
-            if n["endo_wait"] >= 3: j_scare("endo")
-        elif not stats["vent_stopper"] and random.randint(1, 15) < n["diff"]: n["endo"] += 1
+        if n["endo"] < 5:
+            if not stats["vent_stopper"] and random.randint(1, 15) < n["diff"]: n["endo"] += 1
+        else: j_scare("endo")
 
-        if n["baby_idx"] == 4:
-            door = n["l_door"] if n["side"] == "Left" else n["r_door"]
-            if not door: 
-                n["baby_wait"] += 1
-                if n["baby_wait"] >= (1 if n["is_boss"] else 2): j_scare("golden" if n["is_boss"] else "baby")
-            else:
-                n["baby_wait"] += 1; play_bang()
-                print(f">> [BANG BANG] Starr Baby is at the {n['side']} Door! <<")
-                if n["baby_wait"] >= 4:
-                    n["baby_idx"] = 0; n["baby_wait"] = 0; n["side"] = random.choice(["Left", "Right"])
-                    play_sound(70, 40, 0.4, "square")
-        elif random.randint(1, 10) < n["diff"]: n["baby_idx"] += 1
-
-        # Logic Checks
         if n["pwr"] <= 0: j_scare("boss_power" if n["is_boss"] else "power")
         elif n["hr"] == 6: win_screen()
         else: update_night()
 
-# Bind Inputs
 document["send-btn"].bind("click", handle_input)
 document["user-input"].bind("keydown", lambda e: handle_input(e) if e.keyCode == 13 else None)
-timer.set_timeout(show_menu, 600)
+timer.set_timeout(show_menu, 1000)
     </script>
 </body>
 </html>
