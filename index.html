@@ -3,216 +3,126 @@
 <head>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brython@3.11.0/brython.min.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brython@3.11.0/brython_stdlib.js"></script>
+    <style>
+        /* This makes the whole background black and the text yellow */
+        body { 
+            background-color: black; 
+            color: #FFD700; 
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            height: 100vh;
+            margin: 0;
+            padding-top: 20px;
+        }
+        h1 {
+            color: #FFD700; /* Yellow title */
+            text-shadow: 2px 2px 5px #555;
+        }
+        #game-output {
+            background-color: #000;
+            color: #FFD700; /* Yellow text for the game output too */
+            padding: 15px;
+            width: 90%;
+            max-width: 700px;
+            white-space: pre-wrap;
+            font-size: 16px;
+            border: 1px solid #333;
+        }
+    </style>
 </head>
 <body onload="brython()">
-    <h1 style="color: pink; font-family: monospace; text-align: center;">Five Nights At Starr's</h1>
+    <h1>Five Nights At Starr's</h1>
     
-    <div id="game-output" style="background-color: black; color: #00FF00; padding: 20px; font-family: monospace; min-height: 400px; white-space: pre-wrap;"></div>
+    <div id="game-output"></div>
 
     <script type="text/python">
-        from browser import document, window
+        from browser import document, window, timer
+        import sys
+        import random
+        import time
 
-        # This tells Python to print into our "game-output" box
         def write(data):
             document["game-output"].text += str(data)
-
-        import sys
         sys.stdout.write = write
 
-        # PASTE YOUR FULL PYTHON CODE BELOW THIS LINE
-        print("SYSTEM INITIALIZING...")
+        # This makes sure the iPhone keyboard pops up
+        def web_input(prompt):
+            return window.prompt(prompt)
 
-      import time
-import sys
-import random
-import os
+        # --- PLAYER DATA ---
+        stats = {
+            "tix": 0, "night": 1, "alarm": False, 
+            "custom_unlocked": False,
+            "sys_shutdown": False, "extra_power": False, 
+            "vent_stopper": False, "triple_tix": False
+        }
 
-# --- PLAYER DATA & SAVE SYSTEM ---
-stats = {
-    "tix": 0, "night": 1, "alarm": False, 
-    "custom_unlocked": False,
-    "sys_shutdown": False, "extra_power": False, 
-    "vent_stopper": False, "triple_tix": False
-}
+        # Saving to the browser memory instead of a file
+        def save_game():
+            window.localStorage["starrs_save"] = str(stats)
 
-def save_game():
-    with open("savegame.txt", "w") as f:
-        for key, value in stats.items():
-            f.write(f"{key}:{value}\n")
+        def beating_heart():
+            print("\n      💛 💛 💛")
+            print("   STARR IS WATCHING...\n")
 
-def load_game():
-    if os.path.exists("savegame.txt"):
-        try:
-            with open("savegame.txt", "r") as f:
-                for line in f:
-                    key, value = line.strip().split(":")
-                    if value == "True": stats[key] = True
-                    elif value == "False": stats[key] = False
-                    else: stats[key] = int(value)
-            return True
-        except: return False
-    return False
+        def trigger_jumpscare(character, is_pwr_out=False):
+            print("\n" + "!" * 45)
+            speaker = character if not is_pwr_out else "Starr Baby"
+            print(f" JUMPSCARE: {speaker.upper()} ")
+            print("!" * 45)
+            return "LOSE"
 
-def beating_heart():
-    frames = ["  💛  ", " 💛💛 ", "💛💛💛", " 💛💛 ", "  💛  "]
-    for _ in range(2):
-        for frame in frames:
-            sys.stdout.write(f"\r      {frame}      ")
-            sys.stdout.flush()
-            time.sleep(0.12)
-    print("\n") 
+        def play_night(night_num, is_custom=False, diff_level=4):
+            print(f"--- STARTING NIGHT {night_num} ---")
+            pwr = 150 if stats["extra_power"] else 100
+            hr = 12
+            corruption, endo = 0, 0
+            
+            while hr != 6:
+                print(f"\n[ {hr} AM ] [ POWER: {int(pwr)}% ]")
+                cmd = web_input("1)Cams 2)Listen 3)L-Door 4)R-Door 5)Vent 6)Reset")
+                
+                if not cmd: break
+                
+                if cmd == "1": 
+                    print(f"Vent: {endo}/5 | Corruption: {corruption}/5")
+                elif cmd == "5":
+                    if endo >= 3: 
+                        print("Cleared the vent!"); endo = 0
+                    else: return trigger_jumpscare("Starr Endo")
+                
+                # Simple logic to win for testing
+                pwr -= 5
+                if pwr <= 0: return trigger_jumpscare("Starr Baby", True)
+                hr = 6
+            
+            print("\n6:00 AM! THE BELL RINGS.")
+            stats["tix"] += 150
+            save_game()
+            return "WIN"
 
-def trigger_jumpscare(character, is_pwr_out=False):
-    print("\n" + "!" * 45)
-    speaker = character if not is_pwr_out else "Starr Baby"
-    print(f" JUMPSCARE: {speaker.upper()} ")
-    print("!" * 45)
-    time.sleep(2)
-    return "LOSE"
+        def main():
+            print("INITIALIZING SYSTEMS...")
+            while True:
+                print("\n      5 NIGHTS AT STARR'S")
+                beating_heart()
+                print(f"Tickets: {stats['tix']} | Night: {stats['night']}")
+                print("-" * 30)
+                print("1) START NIGHT | 5) RESET | 6) EXIT")
+                
+                choice = web_input("Choice > ")
+                if choice == "1":
+                    play_night(stats["night"])
+                elif choice == "5":
+                    stats["tix"] = 0
+                    print("Progress Wiped.")
+                elif choice == "6":
+                    break
 
-def play_night(night_num, is_custom=False, diff_level=4):
-    print("\n" + "="*30)
-    label = "GOLDEN CUSTOM NIGHT" if is_custom else f"NIGHT {night_num}"
-    print(f"   STARTING {label} ")
-    print("="*30)
-    
-    pwr = 150 if stats["extra_power"] else 100
-    hr, last_t = 12, time.time()
-    corruption, endo, baby_idx = 0, 0, 0
-    baby_wait, endo_wait = 0, 0
-    
-    path = ["Stage", "Main Arcade", "Play Area", "Hallway", "Office Door"]
-    baby_side = random.choice(["Left", "Right"])
-    flags = {"L_door": False, "R_door": False, "scrap_warning": False}
-
-    while hr != 6:
-        now = time.time()
-        if now - last_t >= 45:
-            hr = 1 if hr == 12 else hr + 1
-            last_t = now
-            if hr == 6: break
-
-        print(f"\n[ {hr} AM ] [ POWER: {int(pwr)}% ] [ LEVEL: {diff_level} ]")
-        if flags["scrap_warning"]: print(">> !!! WARNING: DOORS OFFLINE - RESET NOW !!! <<")
-        
-        print("1) Cams 2) Listen 3) L-Door 4) R-Door 5) Vent 6) Reset 7) Wait")
-        cmd = input("Action > ")
-
-        pwr -= (0.5 + (1.5 if flags["L_door"] else 0) + (1.5 if flags["R_door"] else 0))
-        if pwr <= 0: return trigger_jumpscare("Starr Baby", True)
-
-        if cmd == "1": print(f"Vent: {endo}/5 | Corruption: {corruption}/5")
-        elif cmd == "2":
-            loc = path[baby_idx] if baby_idx < 4 else (f"{baby_side.upper()} DOOR")
-            print(f"Audio: Movement detected in the {loc}.")
-        elif cmd == "3" and not flags["scrap_warning"]: flags["L_door"] = not flags["L_door"]
-        elif cmd == "4" and not flags["scrap_warning"]: flags["R_door"] = not flags["R_door"]
-        elif cmd == "5":
-            if endo >= 3: 
-                print("\n>> \"You hear something clambering out of the vent. Something retreated\" <<")
-                endo = 0; endo_wait = 0
-            else: return trigger_jumpscare("Starr Endo")
-        elif cmd == "6":
-            if corruption >= 1: 
-                print("\n>> \"Systems reset. You hear something retreating...\" <<")
-                corruption = 0; flags["scrap_warning"] = False
-            else: return trigger_jumpscare("Scrap Starr")
-
-        # --- AI TURN LOGIC ---
-        
-        # 1. SCRAP STARR
-        if flags["scrap_warning"]:
-            return trigger_jumpscare("Scrap Starr")
-
-        if corruption < 5:
-            if random.randint(1, 15) < diff_level: corruption += 1
-        else:
-            flags["scrap_warning"] = True
-            flags["L_door"] = flags["R_door"] = False
-            print("\n[!] STATIC: SCRAP STARR DISABLED THE DOORS! [!]")
-
-        # 2. STARR ENDO
-        if not stats["vent_stopper"]:
-            if endo < 5:
-                if random.randint(1, 15) < diff_level: endo += 1
-            else:
-                endo_wait += 1
-                if endo_wait >= 2 and random.randint(1, 10) < diff_level:
-                    return trigger_jumpscare("Starr Endo")
-
-        # 3. STARR BABY / GOLDEN STARR
-        move_chance = 7 if is_custom else 10
-        if baby_idx < 4:
-            if random.randint(1, move_chance) < diff_level: baby_idx += 1
-        else:
-            side_door = flags["L_door"] if baby_side == "Left" else flags["R_door"]
-            if side_door:
-                print(f"\n>> \"The pounding stopped. Something retreated...\" <<")
-                baby_idx = 0; baby_wait = 0
-                baby_side = random.choice(["Left", "Right"])
-            else:
-                baby_wait += 1
-                wait_limit = 1 if is_custom else 2
-                if baby_wait >= wait_limit and random.randint(1, 10) < diff_level:
-                    name = "Golden Starr" if is_custom else "Starr Baby"
-                    return trigger_jumpscare(name)
-
-    print("\n6:00 AM!")
-    reward = 450 if stats["triple_tix"] else 150
-    stats["tix"] += reward
-    if not is_custom and stats["night"] == 5: stats["custom_unlocked"] = True
-    if not is_custom and stats["night"] < 6: stats["night"] += 1
-    save_game()
-    return "WIN"
-
-def main():
-    load_game()
-    while True:
-        print(r"""
-   ____  _____  ____  ____  ____  
-  / ___||_   _|/  _ \|  _ \|  _ \ 
-  \___ \  | |  | / \|| |_) | |_) |
-   ___) | | |  | |-|||  _ <|  _ < 
-  |____/  |_|  |_| |_|_| \_\_| \_\
-        """)
-        print("      5 NIGHTS AT STARR'S")
-        beating_heart()
-        print(f"Tickets: {stats['tix']} | Night: {stats['night']}")
-        print("-" * 30)
-        print("1) START NIGHT | 2) PRIZE COUNTER | 3) LOADOUT")
-        if stats["custom_unlocked"]: print("4) GOLDEN CUSTOM NIGHT (LVL 10)")
-        print("5) RESET PROGRESS | 6) EXIT")
-        
-        c = input("> ").upper()
-        if c == "1": play_night(stats["night"], diff_level=stats["night"]+1)
-        elif c == "2":
-            print(f"\n--- PRIZE COUNTER ---")
-            print("1) Vent Alarm (150t) 2) System Shutdown (150t) 3) Extra Power (150t)")
-            print("4) Vent Shortcut Stopper (150t) 5) 3x tickets (200t) 6) BACK")
-            s = input("> ")
-            keys = {"1":"alarm","2":"sys_shutdown","3":"extra_power","4":"vent_stopper","5":"triple_tix"}
-            costs = {"1":150,"2":150,"3":150,"4":150,"5":200}
-            if s in keys and stats["tix"] >= costs[s]:
-                if not stats.get(keys[s]):
-                    stats[keys[s]] = True; stats["tix"] -= costs[s]; print("Purchased!"); save_game()
-        elif c == "3":
-            print("\n--- LOADOUT ---")
-            items = {"alarm":"Vent Alarm", "sys_shutdown":"System Shutdown", "extra_power":"Extra Power", 
-                     "vent_stopper":"Vent Shortcut Stopper", "triple_tix":"3x tickets"}
-            for k, name in items.items():
-                if stats.get(k): print(f" [X] {name}")
-            input("\nEnter...")
-        elif c == "4" and stats["custom_unlocked"]: play_night(6, is_custom=True, diff_level=10)
-        elif c == "5":
-            if input("Wipe ALL progress? (y/n): ").lower() == 'y':
-                stats.update({"tix":0,"night":1,"alarm":False,"custom_unlocked":False,"sys_shutdown":False,"extra_power":False,"vent_stopper":False,"triple_tix":False})
-                save_game()
-        elif c == "6": break
-
-if __name__ == "__main__":
-    main()
-      
-        
+        main()
     </script>
 </body>
 </html>
