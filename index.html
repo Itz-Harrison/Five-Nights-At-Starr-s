@@ -41,35 +41,30 @@ stats = {"tix": 0, "night": 1, "custom_unlocked": False, "extra_power": False, "
 n_data = {}
 state = "MENU"
 
-# --- SAVE SYSTEM ---
 def save_game():
     window.localStorage["starrs_save"] = json.dumps(stats)
 
-# Load immediately on script start
 if "starrs_save" in window.localStorage:
     try:
-        loaded_data = json.loads(window.localStorage["starrs_save"])
-        stats.update(loaded_data)
+        stats.update(json.loads(window.localStorage["starrs_save"]))
     except:
         pass
 
 quotes = {
-    "baby": ["Enjoy your last lullaby...", "The star has to outshine the rest..."],
+    "baby": ["Enjoy your last lullaby...", "The star outshines the rest..."],
     "scrap": ["I'll turn you into garbage.!!", "Who's the real trash now...?"],
-    "endo": ["Can I use your skin..? I lost mine...", "Let me crawl inside you like a suit..."],
-    "power": ["You stole your own spotlight..!", "Lights out... for you..."],
-    "golden": ["I am the luxury.. the gold standard...", "Spotlights fade... But gold is forever..."],
-    "boss_power": ["Gold still shines in the dark...", "The circuit is broken... And so are you..."]
+    "endo": ["Can I use your skin..?", "Let me crawl inside you..."],
+    "power": ["Lights out... for you..."],
+    "golden": ["I am the luxury.. the gold standard...", "Gold is forever..."],
+    "boss_power": ["Gold still shines in the dark...", "The circuit is broken..."]
 }
 
-# --- AUDIO ENGINE ---
 def play_sound(f_start, f_end, dur, wav="sawtooth", vol=0.2):
     try:
         ctx = window.AudioContext.new()
         osc = ctx.createOscillator()
         gain = ctx.createGain()
-        osc.type = wav
-        osc.frequency.setValueAtTime(f_start, ctx.currentTime)
+        osc.type = wav; osc.frequency.setValueAtTime(f_start, ctx.currentTime)
         osc.frequency.exponentialRampToValueAtTime(f_end, ctx.currentTime + dur)
         gain.gain.setValueAtTime(vol, ctx.currentTime)
         gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur)
@@ -80,19 +75,17 @@ def play_sound(f_start, f_end, dur, wav="sawtooth", vol=0.2):
 def play_bang():
     for i in [0, 0.15]: play_sound(70, 60, 0.1, "square", 0.4)
 
-# --- MENU & NAVIGATION ---
 def show_menu():
     global state
     state = "MENU"
-    save_game() # Auto-save whenever returning to the menu
+    save_game()
     out = document["game-output"]
     out.html = '<div style="text-align:center;"><div class="beating-heart">💛</div></div>'
     header = f"\nTickets: {stats['tix']} | Progress: Night {stats['night']}\n"
     if stats['beat_boss']: header += "⭐ STATUS: GOLDEN CHAMPION ⭐\n"
     
-    # Menu text updated: Reset is now 4
-    menu_display = header + "-"*35 + "\n1) START NIGHT | 2) PRIZE COUNTER | 3) LOADOUT"
-    menu_display += "\n4) RESET DATA"
+    menu_display = header + ">> DATA SAVED <<\n" + "-"*35 + "\n1) START NIGHT | 2) PRIZE COUNTER | 3) LOADOUT"
+    menu_display += "\n4) RESET DATA" 
     
     if stats["night"] >= 6: menu_display += "\n5) THE BOSS FIGHT (NIGHT 6)"
     if stats["custom_unlocked"]: menu_display += "\n6) CUSTOM NIGHT"
@@ -108,23 +101,33 @@ def start_night(mode="REGULAR", d_val=0):
         "corrupt": 0, "endo": 0, "baby_idx": 0, "l_door": False, 
         "r_door": False, "scrap": False, "diff": d_val if mode=="CUSTOM" else (20 if is_b else stats["night"] + 2), 
         "side": random.choice(["Left", "Right"]), "is_boss": is_b, "baby_wait": 0, "scrap_wait": 0,
-        "path": ["Stage", "Main Arcade", "Play Area", "Hallway", "Office Door"]
+        "path": ["Stage", "Main Arcade", "Play Area", "Hallway", "Office Door"],
+        "last_msg": "Night Started. Good luck."
     }
     update_night()
 
 def update_night():
     n = n_data
-    document["game-output"].text = f"\n[{n['hr']} AM] [PWR: {int(n['pwr'])}%]\n"
+    out = document["game-output"]
+    out.text = f"\n[{n['hr']} AM] [PWR: {int(n['pwr'])}%]\n"
+    out.text += "-"*25 + "\n"
+    out.text += f"> {n['last_msg']}\n"
+    out.text += "-"*25 + "\n"
+    
     if stats["vent_alarm"] and n["endo"] >= 4:
-        document["game-output"].text += ">> [!] VENT ALARM BEEPING [!] <<\n"
+        out.text += ">> [!] VENT ALARM BEEPING [!] <<\n"
         play_sound(880, 880, 0.1, "sine", 0.1)
-    document["game-output"].text += "0:Wait 1:Cams 2:Listen 3:L-Door 4:R-Door 5:Vent 6:Reset"
+    
+    status = []
+    if n["l_door"]: status.append("L-DOOR CLOSED")
+    if n["r_door"]: status.append("R-DOOR CLOSED")
+    if status: out.text += "STATUS: " + " & ".join(status) + "\n"
+    
+    out.text += "\n0:Wait 1:Cams (Vent/Sys) 2:Listen (Starr Baby) 3:L-Door 4:R-Door 5:Vent 6:Reset"
 
-# --- GAME OVER / WIN LOGIC ---
 def j_scare(cat):
     play_sound(160, 10, 0.6, "sawtooth", 0.5)
-    msg = random.choice(quotes[cat])
-    document["game-output"].text = f"\n!!! JUMPSCARE !!!\n\n{msg}"
+    document["game-output"].text = f"\n!!! JUMPSCARE !!!\n\n{random.choice(quotes[cat])}"
     timer.set_timeout(show_menu, 4000)
 
 def win_screen():
@@ -132,13 +135,12 @@ def win_screen():
     play_sound(440, 880, 1.2, "sine", 0.2)
     def finalize():
         if n_data["is_boss"]:
-            document["game-output"].text = "STARR ARCADE: FINAL LOG\n\nGolden Starr deactivated. [STORY COMPLETE]"
-            stats["beat_boss"] = True; stats["custom_unlocked"] = True; timer.set_timeout(show_menu, 9000)
+            document["game-output"].text = "STARR ARCADE: [STORY COMPLETE]"
+            stats["beat_boss"] = True; stats["custom_unlocked"] = True; timer.set_timeout(show_menu, 5000)
         else:
             stats["night"] += 1; stats["tix"] += 450 if stats["triple_tix"] else 150; show_menu()
     timer.set_timeout(finalize, 4000)
 
-# --- INPUT HANDLING ---
 def handle_input(ev):
     global state
     cmd = document["user-input"].value.strip().upper()
@@ -148,27 +150,24 @@ def handle_input(ev):
         if cmd == "1": start_night()
         elif cmd == "2":
             state = "SHOP"
-            document["game-output"].text = f"\nTix: {stats['tix']}\n1)Pwr(150) 2)Stop(150) 3)Alarm(150) 4)Reset(150) 5)3xTix(200) 6)BACK"
+            document["game-output"].text = f"\nTix: {stats['tix']}\n1)Pwr 2)Stop 3)Alarm 4)Reset 5)3xTix 6)BACK"
         elif cmd == "3":
-            # Loadout check
-            document["game-output"].text = f"\n- ACTIVE LOADOUT -\nExtra Power: {stats['extra_power']}\nVent Stopper: {stats['vent_stopper']}\nVent Alarm: {stats['vent_alarm']}\n\n(Type ANY to return)"
-            state = "LOADOUT_VIEW"
+            document["game-output"].text = f"\n- LOADOUT -\nPower: {stats['extra_power']}\nVent Stopper: {stats['vent_stopper']}\n\nType 0 to go back."
+            state = "LOADOUT"
         elif cmd == "4": 
-            if window.confirm("Reset all progress?"):
+            if window.confirm("Reset all data?"):
                 stats.update({"tix":0,"night":1,"custom_unlocked":False,"beat_boss":False, "extra_power":False, "vent_stopper":False, "vent_alarm":False, "sys_shutdown":False, "triple_tix":False})
                 save_game(); show_menu()
         elif cmd == "5" and stats["night"] >= 6: start_night("BOSS")
-        elif cmd == "6" and stats["custom_unlocked"]:
-            document["game-output"].text = "Set Difficulty (1-20):"; state = "CUSTOM_SET"
+        elif cmd == "6" and stats["custom_unlocked"]: 
+            document["game-output"].text = "Difficulty (1-20):"; state = "CUSTOM_SET"
     
-    elif state == "LOADOUT_VIEW":
-        show_menu()
+    elif state == "LOADOUT" and cmd == "0": show_menu()
 
     elif state == "SHOP":
-        prices = {"1":150, "2":150, "3":150, "4":150, "5":200}
         items = {"1":"extra_power", "2":"vent_stopper", "3":"vent_alarm", "4":"sys_shutdown", "5":"triple_tix"}
-        if cmd in items and stats["tix"] >= prices[cmd]:
-            stats[items[cmd]] = True; stats["tix"] -= prices[cmd]; save_game(); show_menu()
+        if cmd in items and stats["tix"] >= 150:
+            stats[items[cmd]] = True; stats["tix"] -= 150; save_game(); show_menu()
         elif cmd == "6": show_menu()
 
     elif state == "CUSTOM_SET":
@@ -181,17 +180,35 @@ def handle_input(ev):
         n["turn"] += 1
         if n["turn"] >= 8: n["turn"] = 0; n["hr"] = 1 if n["hr"] == 12 else n["hr"] + 1
 
-        if cmd == "1":
-            loc = n['path'][n['baby_idx']] if n['baby_idx'] < 4 else f"{n['side']} Door"
-            document["game-output"].text += f"\nCam: Baby @ {loc} | Vent: {n['endo']}/5"
-        elif cmd == "3": n["l_door"] = not n["l_door"]; n["r_door"] = False; play_sound(80, 50, 0.1, "square")
-        elif cmd == "4": n["r_door"] = not n["r_door"]; n["l_door"] = False; play_sound(80, 50, 0.1, "square")
+        # Updated Mechanics Logic
+        if cmd == "1": # CAMERAS (Vent and Corruption)
+            n["last_msg"] = f"CAMS: Vent is {n['endo']}/5 full. Corruption Level: {n['corrupt']}."
+        elif cmd == "2": # LISTEN (Starr Baby)
+            if n["baby_idx"] == 4:
+                n["last_msg"] = f"LISTEN: Heavy breathing heard at the {n['side']} DOOR!"
+            elif n["baby_idx"] >= 2:
+                n["last_msg"] = f"LISTEN: You hear metallic footsteps in the {n['path'][n['baby_idx']]}."
+            else:
+                n["last_msg"] = "LISTEN: The arcade is quiet..."
+        elif cmd == "3": 
+            n["l_door"] = not n["l_door"]; n["r_door"] = False
+            n["last_msg"] = "Left Door " + ("Closed" if n["l_door"] else "Opened")
+        elif cmd == "4": 
+            n["r_door"] = not n["r_door"]; n["l_door"] = False
+            n["last_msg"] = "Right Door " + ("Closed" if n["r_door"] else "Opened")
         elif cmd == "5":
-            if n["endo"] >= 3: n["endo"] = 0; play_sound(400, 100, 0.2, "sine")
+            if n["endo"] >= 3: 
+                n["endo"] = 0; play_sound(400, 100, 0.2, "sine")
+                n["last_msg"] = "VENT: Air flushed. Vent Endo cleared."
             else: j_scare("endo")
         elif cmd == "6":
             req = 3 if stats["sys_shutdown"] else 4
-            if n["corrupt"] >= req: n["corrupt"] = 0; n["scrap"] = False; play_sound(200, 1500, 0.2, "square")
+            if n["corrupt"] >= req: 
+                n["corrupt"] = 0; n["scrap"] = False
+                n["last_msg"] = "RESET: System rebooted. Corruption cleared."
+            else: n["last_msg"] = "RESET: System stable. No reboot needed."
+        else:
+            n["last_msg"] = "Waiting..."
 
         # AI LOGIC
         if n["baby_idx"] == 4:
