@@ -50,13 +50,19 @@ if "starrs_save" in window.localStorage:
     except:
         pass
 
+# --- CORRECTED DIALOGUE ---
 quotes = {
-    "baby": ["Enjoy your last lullaby...", "The star outshines the rest..."],
+    "baby": ["Enjoy your last lullaby...", "The star has to outshine the rest..."],
     "scrap": ["I'll turn you into garbage.!!", "Who's the real trash now...?"],
     "endo": ["Can I use your skin..?", "Let me crawl inside you..."],
-    "power": ["Lights out... for you..."],
-    "golden": ["I am the luxury.. the gold standard...", "Gold is forever..."],
+    "power": ["You stole your own spotlight..!", "Lights out... for you..."],
+    "golden": ["I am the luxury.. the gold standard...", "Spotlights fade... But gold is forever..."],
     "boss_power": ["Gold still shines in the dark...", "The circuit is broken..."]
+}
+
+names = {
+    "baby": "STARR BABY", "scrap": "SCRAP STARR", "endo": "VENT ENDO",
+    "power": "POWER OUTAGE", "golden": "GOLDEN STARR", "boss_power": "SYSTEM FAILURE"
 }
 
 def play_sound(f_start, f_end, dur, wav="sawtooth", vol=0.2):
@@ -72,8 +78,20 @@ def play_sound(f_start, f_end, dur, wav="sawtooth", vol=0.2):
         osc.start(); osc.stop(ctx.currentTime + dur)
     except: pass
 
+def play_screech():
+    play_sound(2000, 100, 0.5, "sawtooth", 0.4)
+    play_sound(1500, 50, 0.5, "square", 0.3)
+
+def play_golden_screech():
+    play_sound(150, 10, 1.5, "sawtooth", 0.6)
+    play_sound(100, 5, 1.5, "square", 0.5)
+    play_sound(200, 20, 0.8, "sawtooth", 0.4)
+
 def play_bang():
     for i in [0, 0.15]: play_sound(70, 60, 0.1, "square", 0.4)
+
+def play_unlock():
+    play_sound(600, 100, 0.3, "sawtooth", 0.5)
 
 def show_menu():
     global state
@@ -98,7 +116,7 @@ def start_night(mode="REGULAR", d_val=0):
     is_b = (mode == "BOSS")
     n_data = {
         "pwr": 150 if stats["extra_power"] else 100, "hr": 12, "turn": 0,
-        "corrupt": 0, "endo": 0, "baby_idx": 0, "l_door": False, 
+        "corrupt": 0, "endo": 0, "endo_wait": 0, "baby_idx": 0, "l_door": False, 
         "r_door": False, "scrap": False, "diff": d_val if mode=="CUSTOM" else (20 if is_b else stats["night"] + 2), 
         "side": random.choice(["Left", "Right"]), "is_boss": is_b, "baby_wait": 0, "scrap_wait": 0,
         "path": ["Stage", "Main Arcade", "Play Area", "Hallway", "Office Door"],
@@ -126,9 +144,15 @@ def update_night():
     out.text += "\n0:Wait 1:Cams (Vent/Sys) 2:Listen (Starr Baby) 3:L-Door 4:R-Door 5:Vent 6:Reset"
 
 def j_scare(cat):
-    play_sound(160, 10, 0.6, "sawtooth", 0.5)
-    document["game-output"].text = f"\n!!! JUMPSCARE !!!\n\n{random.choice(quotes[cat])}"
-    timer.set_timeout(show_menu, 4000)
+    if cat == "golden" or cat == "boss_power":
+        play_golden_screech()
+    else:
+        play_screech()
+        
+    who = names.get(cat, "UNKNOWN")
+    quote = random.choice(quotes.get(cat, ["..."]))
+    document["game-output"].text = f"\n!!! JUMPSCARE !!!\n\nTERMINATED BY: {who}\n\n\"{quote}\""
+    timer.set_timeout(show_menu, 5000)
 
 def win_screen():
     document["game-output"].html = '<div class="victory-flash">6:00 AM</div>'
@@ -180,10 +204,9 @@ def handle_input(ev):
         n["turn"] += 1
         if n["turn"] >= 8: n["turn"] = 0; n["hr"] = 1 if n["hr"] == 12 else n["hr"] + 1
 
-        # Updated Mechanics Logic
-        if cmd == "1": # CAMERAS (Vent and Corruption)
+        if cmd == "1": 
             n["last_msg"] = f"CAMS: Vent is {n['endo']}/5 full. Corruption Level: {n['corrupt']}."
-        elif cmd == "2": # LISTEN (Starr Baby)
+        elif cmd == "2": 
             if n["baby_idx"] == 4:
                 n["last_msg"] = f"LISTEN: Heavy breathing heard at the {n['side']} DOOR!"
             elif n["baby_idx"] >= 2:
@@ -198,39 +221,47 @@ def handle_input(ev):
             n["last_msg"] = "Right Door " + ("Closed" if n["r_door"] else "Opened")
         elif cmd == "5":
             if n["endo"] >= 3: 
-                n["endo"] = 0; play_sound(400, 100, 0.2, "sine")
+                n["endo"] = 0; n["endo_wait"] = 0; play_sound(400, 100, 0.2, "sine")
                 n["last_msg"] = "VENT: Air flushed. Vent Endo cleared."
             else: j_scare("endo")
         elif cmd == "6":
             req = 3 if stats["sys_shutdown"] else 4
             if n["corrupt"] >= req: 
-                n["corrupt"] = 0; n["scrap"] = False
+                n["corrupt"] = 0; n["scrap"] = False; n["scrap_wait"] = 0
                 n["last_msg"] = "RESET: System rebooted. Corruption cleared."
-            else: n["last_msg"] = "RESET: System stable. No reboot needed."
+            else: n["last_msg"] = "RESET: System stable."
         else:
             n["last_msg"] = "Waiting..."
 
         # AI LOGIC
+        # Starr Baby (Wait 2 turns)
         if n["baby_idx"] == 4:
             dr = n["l_door"] if n["side"] == "Left" else n["r_door"]
             if not dr: 
                 n["baby_wait"] += 1
-                if n["baby_wait"] >= (1 if n["is_boss"] else 2): j_scare("golden" if n["is_boss"] else "baby")
+                if n["baby_wait"] >= 2: j_scare("golden" if n["is_boss"] else "baby")
             else:
                 n["baby_wait"] += 1; play_bang()
                 if n["baby_wait"] >= 4: n["baby_idx"] = 0; n["baby_wait"] = 0; n["side"] = random.choice(["Left", "Right"])
         elif random.randint(1, 10) < n["diff"]: n["baby_idx"] += 1
         
+        # Scrap Starr (Unlock, then Kill)
         if n["scrap"]:
             n["scrap_wait"] += 1
+            if n["scrap_wait"] == 1:
+                n["l_door"] = False; n["r_door"] = False; play_unlock()
+                n["last_msg"] = ">> CRITICAL: SECURITY DOORS UNLOCKED BY MALWARE <<"
             if n["scrap_wait"] >= 2: j_scare("golden" if n["is_boss"] else "scrap")
         elif random.randint(1, 15) < n["diff"]:
             n["corrupt"] += 1
             if n["corrupt"] >= 5: n["scrap"] = True
 
-        if n["endo"] < 5:
+        # Vent Endo (Wait 2 turns)
+        if n["endo"] >= 5:
+            n["endo_wait"] += 1
+            if n["endo_wait"] >= 2: j_scare("endo")
+        else:
             if not stats["vent_stopper"] and random.randint(1, 15) < n["diff"]: n["endo"] += 1
-        else: j_scare("endo")
 
         if n["pwr"] <= 0: j_scare("boss_power" if n["is_boss"] else "power")
         elif n["hr"] == 6: win_screen()
