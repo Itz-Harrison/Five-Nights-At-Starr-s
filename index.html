@@ -41,13 +41,17 @@ stats = {"tix": 0, "night": 1, "custom_unlocked": False, "extra_power": False, "
 n_data = {}
 state = "MENU"
 
-# Save System
+# --- SAVE SYSTEM ---
 def save_game():
     window.localStorage["starrs_save"] = json.dumps(stats)
 
+# Load immediately on script start
 if "starrs_save" in window.localStorage:
-    try: stats.update(json.loads(window.localStorage["starrs_save"]))
-    except: pass
+    try:
+        loaded_data = json.loads(window.localStorage["starrs_save"])
+        stats.update(loaded_data)
+    except:
+        pass
 
 quotes = {
     "baby": ["Enjoy your last lullaby...", "The star has to outshine the rest..."],
@@ -80,15 +84,20 @@ def play_bang():
 def show_menu():
     global state
     state = "MENU"
-    save_game()
+    save_game() # Auto-save whenever returning to the menu
     out = document["game-output"]
     out.html = '<div style="text-align:center;"><div class="beating-heart">💛</div></div>'
     header = f"\nTickets: {stats['tix']} | Progress: Night {stats['night']}\n"
     if stats['beat_boss']: header += "⭐ STATUS: GOLDEN CHAMPION ⭐\n"
-    out.text += header + "-"*35 + "\n1) START NIGHT | 2) PRIZE COUNTER | 3) LOADOUT"
-    if stats["night"] >= 6: out.text += "\n4) THE BOSS FIGHT (NIGHT 6)"
-    if stats["custom_unlocked"]: out.text += "\n5) CUSTOM NIGHT"
-    out.text += "\n6) RESET DATA"
+    
+    # Menu text updated: Reset is now 4
+    menu_display = header + "-"*35 + "\n1) START NIGHT | 2) PRIZE COUNTER | 3) LOADOUT"
+    menu_display += "\n4) RESET DATA"
+    
+    if stats["night"] >= 6: menu_display += "\n5) THE BOSS FIGHT (NIGHT 6)"
+    if stats["custom_unlocked"]: menu_display += "\n6) CUSTOM NIGHT"
+    
+    out.text += menu_display
 
 def start_night(mode="REGULAR", d_val=0):
     global state, n_data
@@ -123,7 +132,7 @@ def win_screen():
     play_sound(440, 880, 1.2, "sine", 0.2)
     def finalize():
         if n_data["is_boss"]:
-            document["game-output"].text = "STARR ARCADE: FINAL LOG\n\nGolden Starr has been deactivated. The circuit is broken. The spirits within the machines have faded.\n\nYou have survived the Gold Standard.\n\n[STORY COMPLETE - CUSTOM NIGHT UNLOCKED]"
+            document["game-output"].text = "STARR ARCADE: FINAL LOG\n\nGolden Starr deactivated. [STORY COMPLETE]"
             stats["beat_boss"] = True; stats["custom_unlocked"] = True; timer.set_timeout(show_menu, 9000)
         else:
             stats["night"] += 1; stats["tix"] += 450 if stats["triple_tix"] else 150; show_menu()
@@ -137,22 +146,29 @@ def handle_input(ev):
     
     if state == "MENU":
         if cmd == "1": start_night()
-        elif cmd == "4" and stats["night"] >= 6: start_night("BOSS")
-        elif cmd == "5" and stats["custom_unlocked"]:
-            document["game-output"].text = "Set Difficulty (1-20):"; state = "CUSTOM_SET"
         elif cmd == "2":
             state = "SHOP"
             document["game-output"].text = f"\nTix: {stats['tix']}\n1)Pwr(150) 2)Stop(150) 3)Alarm(150) 4)Reset(150) 5)3xTix(200) 6)BACK"
-        elif cmd == "6": 
+        elif cmd == "3":
+            # Loadout check
+            document["game-output"].text = f"\n- ACTIVE LOADOUT -\nExtra Power: {stats['extra_power']}\nVent Stopper: {stats['vent_stopper']}\nVent Alarm: {stats['vent_alarm']}\n\n(Type ANY to return)"
+            state = "LOADOUT_VIEW"
+        elif cmd == "4": 
             if window.confirm("Reset all progress?"):
-                stats.update({"tix":0,"night":1,"custom_unlocked":False,"beat_boss":False})
+                stats.update({"tix":0,"night":1,"custom_unlocked":False,"beat_boss":False, "extra_power":False, "vent_stopper":False, "vent_alarm":False, "sys_shutdown":False, "triple_tix":False})
                 save_game(); show_menu()
+        elif cmd == "5" and stats["night"] >= 6: start_night("BOSS")
+        elif cmd == "6" and stats["custom_unlocked"]:
+            document["game-output"].text = "Set Difficulty (1-20):"; state = "CUSTOM_SET"
     
+    elif state == "LOADOUT_VIEW":
+        show_menu()
+
     elif state == "SHOP":
         prices = {"1":150, "2":150, "3":150, "4":150, "5":200}
         items = {"1":"extra_power", "2":"vent_stopper", "3":"vent_alarm", "4":"sys_shutdown", "5":"triple_tix"}
         if cmd in items and stats["tix"] >= prices[cmd]:
-            stats[items[cmd]] = True; stats["tix"] -= prices[cmd]; show_menu()
+            stats[items[cmd]] = True; stats["tix"] -= prices[cmd]; save_game(); show_menu()
         elif cmd == "6": show_menu()
 
     elif state == "CUSTOM_SET":
