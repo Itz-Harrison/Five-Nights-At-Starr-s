@@ -17,6 +17,31 @@
             overflow: hidden;
         }
         h1 { color: #FFFB00; text-shadow: 0px 0px 10px #FFFB00; margin: 5px; font-size: 24px; }
+        
+        #input-area {
+            display: flex;
+            width: 95%;
+            max-width: 600px;
+            margin-bottom: 10px;
+            z-index: 100;
+        }
+        #user-input {
+            flex-grow: 1;
+            background: #111;
+            color: #FFFB00;
+            border: 2px solid #FFFB00;
+            padding: 12px;
+            font-size: 18px;
+            outline: none;
+        }
+        #send-btn {
+            background: #FFFB00;
+            color: black;
+            border: none;
+            padding: 10px 15px;
+            font-weight: bold;
+        }
+
         #game-output {
             background-color: #000;
             color: #FFFB00;
@@ -29,52 +54,41 @@
             border: 2px solid #FFFB00;
             flex-grow: 1;
             overflow-y: auto;
-            margin-bottom: 10px;
         }
-        #input-area {
-            display: flex;
-            width: 95%;
-            max-width: 600px;
-            margin-bottom: 30px;
-        }
-        #user-input {
-            flex-grow: 1;
-            background: #111;
+
+        .beating-heart {
+            font-size: 45px;
             color: #FFFB00;
-            border: 2px solid #FFFB00;
-            padding: 15px;
-            font-size: 18px;
-            font-family: monospace;
-            outline: none;
+            display: inline-block;
+            animation: beat 0.8s infinite;
         }
-        #send-btn {
-            background: #FFFB00;
-            color: black;
-            border: none;
-            padding: 10px 20px;
-            font-weight: bold;
-            font-size: 16px;
+        @keyframes beat {
+            0% { transform: scale(1); }
+            15% { transform: scale(1.3); }
+            30% { transform: scale(1); }
+            45% { transform: scale(1.15); }
+            60% { transform: scale(1); }
         }
     </style>
 </head>
 <body onload="brython()">
     <h1>Five Nights At Starr's</h1>
-    <div id="game-output">INITIALIZING SYSTEMS...</div>
     
     <div id="input-area">
-        <input type="text" id="user-input" placeholder="Type move..." autocomplete="off">
+        <input type="text" id="user-input" placeholder="Type command..." autocomplete="off">
         <button id="send-btn">SEND</button>
     </div>
+
+    <div id="game-output"></div>
 
     <script type="text/python">
 from browser import document, window, timer
 import sys
 import random
 
-# --- GLOBALS & SETUP ---
 state = "MENU"
 stats = {
-    "tix": 0, "night": 1, "alarm": False, "custom_unlocked": False,
+    "tix": 0, "night": 1, "alarm": False, "custom_unlocked": False, 
     "sys_shutdown": False, "extra_power": False, "vent_stopper": False, "triple_tix": False
 }
 n_data = {}
@@ -96,11 +110,11 @@ def load_game():
 def show_menu():
     global state
     state = "MENU"
-    document["game-output"].text = ""
-    print("      💛 💛 💛\n   5 NIGHTS AT STARR'S")
-    print(f"Tickets: {stats['tix']} | Night: {stats['night']}")
+    document["game-output"].html = '<div style="text-align:center;"><div class="beating-heart">💛</div></div>'
+    print("\n   STARR IS WATCHING...")
+    print(f"\nTickets: {stats['tix']} | Night: {stats['night']}")
     print("-" * 30)
-    print("1) START NIGHT\n2) PRIZE COUNTER\n3) LOADOUT")
+    print("1) START NIGHT | 2) PRIZE COUNTER | 3) LOADOUT")
     if stats["custom_unlocked"]: print("4) GOLDEN CUSTOM NIGHT")
     print("5) RESET PROGRESS")
 
@@ -109,10 +123,10 @@ def start_night(is_custom=False):
     state = "PLAYING"
     diff = 10 if is_custom else stats["night"] + 2
     n_data = {
-        "pwr": 150 if stats["extra_power"] else 100,
-        "hr": 12, "corrupt": 0, "endo": 0, "baby_idx": 0, "baby_wait": 0,
-        "l_door": False, "r_door": False, "scrap": False, "diff": diff,
-        "side": random.choice(["Left", "Right"]), "is_c": is_custom
+        "pwr": 150 if stats["extra_power"] else 100, "hr": 12, 
+        "corrupt": 0, "endo": 0, "baby_idx": 0, "l_door": False, 
+        "r_door": False, "scrap": False, "diff": diff, 
+        "side": random.choice(["Left", "Right"]), "is_c": is_custom, "wait": 0
     }
     document["game-output"].text = f"--- {'GOLDEN NIGHT' if is_custom else 'NIGHT ' + str(stats['night'])} ---\n"
     update_night()
@@ -132,18 +146,18 @@ def handle_input(ev):
         if cmd == "1": start_night()
         elif cmd == "2":
             state = "SHOP"
-            print("\n- SHOP - 1)Alarm 2)Shutdown 3)Power 4)Stopper 5)3xTix(200t) 6)BACK")
+            print("\n- PRIZE COUNTER - (Cost: 150t)\n1)Alarm 2)Shutdown 3)Power 4)Stopper 5)3xTix(200t) 6)BACK")
         elif cmd == "3":
             print("\n--- LOADOUT ---")
             for k,v in stats.items():
                 if v == True and k != "custom_unlocked": print(f"[X] {k}")
-            print("\n(Enter anything to exit)")
+            print("\n(Type anything to exit)")
             state = "LOADOUT"
         elif cmd == "4" and stats["custom_unlocked"]: start_night(True)
         elif cmd == "5":
-            stats.update({"tix":0,"night":1,"extra_power":False,"custom_unlocked":False,"vent_stopper":False})
+            stats.update({"tix":0,"night":1,"alarm":False,"sys_shutdown":False,"extra_power":False,"vent_stopper":False,"triple_tix":False,"custom_unlocked":False})
             save_game(); show_menu()
-
+    
     elif state == "SHOP" or state == "LOADOUT":
         if state == "SHOP":
             keys = {"1":"alarm","2":"sys_shutdown","3":"extra_power","4":"vent_stopper","5":"triple_tix"}
@@ -156,11 +170,12 @@ def handle_input(ev):
     elif state == "PLAYING":
         n = n_data
         n["pwr"] -= (1.5 + (2 if n["l_door"] else 0) + (2 if n["r_door"] else 0))
-        
         if cmd == "1": print(f"Vent: {n['endo']}/5 | Corrupt: {n['corrupt']}/5")
-        elif cmd == "2": print(f"Audio: Movement in {'OFFICE' if n['baby_idx'] >= 4 else 'HALL'}")
-        elif cmd == "3" and not n["scrap"]: n["l_door"] = not n["l_door"]; print(f"L-Door: {n['l_door']}")
-        elif cmd == "4" and not n["scrap"]: n["r_door"] = not n["r_door"]; print(f"R-Door: {n['r_door']}")
+        elif cmd == "2": 
+            loc = "OFFICE DOOR" if n['baby_idx'] >= 4 else "HALLWAY"
+            print(f"Audio: Movement in {loc}")
+        elif cmd == "3" and not n["scrap"]: n["l_door"] = not n["l_door"]; print(f"L-Door: {'CLOSED' if n['l_door'] else 'OPEN'}")
+        elif cmd == "4" and not n["scrap"]: n["r_door"] = not n["r_door"]; print(f"R-Door: {'CLOSED' if n['r_door'] else 'OPEN'}")
         elif cmd == "5":
             if n["endo"] >= 3: print("Vent Cleared!"); n["endo"] = 0
             else: j_scare("Starr Endo")
@@ -170,6 +185,7 @@ def handle_input(ev):
         if n["scrap"]: j_scare("Scrap Starr")
         if random.randint(1, 15) < n["diff"]: n["corrupt"] += 1
         if n["corrupt"] >= 5: n["scrap"] = True; n["l_door"] = n["r_door"] = False
+
         if not stats["vent_stopper"] and random.randint(1, 15) < n["diff"]: n["endo"] += 1
         
         if n["baby_idx"] < 4:
@@ -180,18 +196,18 @@ def handle_input(ev):
                 print("\n>> Thud... It retreated. <<")
                 n["baby_idx"] = 0; n["side"] = random.choice(["Left", "Right"])
             else:
-                n["baby_wait"] += 1
-                if n["baby_wait"] >= 2: j_scare("Golden Starr" if n["is_c"] else "Starr Baby")
+                n["wait"] += 1
+                if n["wait"] >= 2: j_scare("Golden Starr" if n["is_c"] else "Starr Baby")
 
-        if n["pwr"] <= 0: j_scare("Starr Baby (Power)")
+        if n["pwr"] <= 0: j_scare("Power Out")
         elif n["endo"] >= 5: j_scare("Starr Endo")
         else:
             n["hr"] = 1 if n["hr"] == 12 else n["hr"] + 1
             if n["hr"] == 6:
-                print("\n6:00 AM! Night Won!"); 
+                print("\n6:00 AM! Night Won!")
                 stats["tix"] += 450 if stats["triple_tix"] else 150
-                if not n["is_c"]: stats["night"] += 1
-                if stats["night"] >= 6: stats["custom_unlocked"] = True
+                if not n["is_c"] and stats["night"] < 6: stats["night"] += 1
+                if stats["night"] >= 5: stats["custom_unlocked"] = True
                 save_game(); show_menu()
             else: update_night()
 
