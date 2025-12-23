@@ -133,7 +133,7 @@ def start_night(mode="REGULAR", d_val=0):
         "r_door": False, "scrap": False, "diff": d_val if mode=="CUSTOM" else (20 if is_b else stats["night"] + 2), 
         "side": random.choice(["Left", "Right"]), "is_boss": is_b, "baby_wait": 0, "scrap_wait": 0,
         "path": ["Stage", "Main Arcade", "Play Area", "Hallway", "Office Door"],
-        "last_msg": "Night Started. Good luck."
+        "last_msg": "Night Started. Good luck.", "shortcut_alert": False
     }
     update_night()
 
@@ -141,17 +141,19 @@ def update_night():
     n = n_data
     out = document["game-output"]
     
-    # PERMANENT GREEN AT 5/5
     if n["corrupt"] >= 5: out.classList.add("perm-corrupt")
     else: out.classList.remove("perm-corrupt")
     
-    # Using html.DIV and fragments to support RED ALARM text
     out.html = ""
     top_display = f"[{n['hr']} AM] [PWR: {int(n['pwr'])}%]\n" + "-"*25 + f"\n> {n['last_msg']}\n" + "-"*25 + "\n"
     out <= top_display
 
+    if n["shortcut_alert"]:
+        s_msg = html.SPAN(">> [!] SOMETHING HAS TAKEN A SHORTCUT [!] <<\n", ClassName="vent-warning")
+        out <= s_msg
+        n["shortcut_alert"] = False
+
     if stats["vent_alarm"] and n["endo"] >= 4:
-        # RED ALARM TEXT
         alarm = html.SPAN(">> [!] VENT ALARM BEEPING [!] <<\n", ClassName="vent-warning")
         out <= alarm
         play_sound(880, 880, 0.1, "sine", 0.1)
@@ -170,7 +172,6 @@ def j_scare(cat):
         play_golden_screech()
     else:
         play_screech()
-        
     who = names.get(cat, "UNKNOWN")
     quote = random.choice(quotes.get(cat, ["..."]))
     document["game-output"].text = f"\n!!! JUMPSCARE !!!\n\nTERMINATED BY: {who}\n\n\"{quote}\""
@@ -184,7 +185,7 @@ def win_screen():
             document["game-output"].text = "STARR ARCADE: [STORY COMPLETE]"
             stats["beat_boss"] = True; stats["custom_unlocked"] = True; timer.set_timeout(show_menu, 5000)
         else:
-            stats["night"] += 1; stats["tix"] += 450 if stats["triple_tix"] else 150; show_menu()
+            stats["night"] += 1; stats["tix"] += 300 if stats["triple_tix"] else 150; show_menu()
     timer.set_timeout(finalize, 4000)
 
 def handle_input(ev):
@@ -201,19 +202,19 @@ def handle_input(ev):
             shop_text += f"2) Vent Stopper (150t) {'[OWNED]' if stats['vent_stopper'] else ''}\n"
             shop_text += f"3) Vent Alarm (150t) {'[OWNED]' if stats['vent_alarm'] else ''}\n"
             shop_text += f"4) Early Reset (150t) {'[OWNED]' if stats['sys_shutdown'] else ''}\n"
-            shop_text += f"5) Triple Tix (200t) {'[OWNED]' if stats['triple_tix'] else ''}\n"
+            shop_text += f"5) Double Tix (200t) {'[OWNED]' if stats['triple_tix'] else ''}\n"
             shop_text += "6) BACK"
             document["game-output"].text = shop_text
         elif cmd == "3":
             state = "LOADOUT"
-            load_text = "\n--- CURRENT LOADOUT ---\n"
-            load_text += f"1. Extra Power:  {'[OWNED]' if stats['extra_power'] else '[LOCKED]'}\n   (Start with 150% Power)\n"
-            load_text += f"2. Vent Stopper: {'[OWNED]' if stats['vent_stopper'] else '[LOCKED]'}\n   (Endo enters vents much slower)\n"
-            load_text += f"3. Vent Alarm:   {'[OWNED]' if stats['vent_alarm'] else '[LOCKED]'}\n   (Audio alert when Endo is near)\n"
-            load_text += f"4. Early Reset:  {'[OWNED]' if stats['sys_shutdown'] else '[LOCKED]'}\n   (Reset Corruption at 3/5 instead of 5/5)\n"
-            load_text += f"5. Triple Tix:   {'[OWNED]' if stats['triple_tix'] else '[LOCKED]'}\n   (Earn 450 Tickets per win)\n"
-            load_text += "\nType 0 to go back."
-            document["game-output"].text = load_text
+            lt = "\n--- CURRENT LOADOUT ---\n"
+            lt += f"1. Extra Power:  {'[OWNED]' if stats['extra_power'] else '[LOCKED]'}\n   (Start with 150% Power)\n"
+            lt += f"2. Vent Stopper: {'[OWNED]' if stats['vent_stopper'] else '[LOCKED]'}\n   (Blocks shortcuts for Baby/Golden)\n"
+            lt += f"3. Vent Alarm:   {'[OWNED]' if stats['vent_alarm'] else '[LOCKED]'}\n   (Audio alert when Endo is near)\n"
+            lt += f"4. Early Reset:  {'[OWNED]' if stats['sys_shutdown'] else '[LOCKED]'}\n   (Reset Corruption at 2/5 instead of 3/5)\n"
+            lt += f"5. Double Tix:   {'[OWNED]' if stats['triple_tix'] else '[LOCKED]'}\n   (Earn 300 Tickets per win)\n"
+            lt += "\nType 0 to go back."
+            document["game-output"].text = lt
         elif cmd == "4": 
             if window.confirm("Reset all data?"):
                 stats.update({"tix":0,"night":1,"custom_unlocked":False,"beat_boss":False, "extra_power":False, "vent_stopper":False, "vent_alarm":False, "sys_shutdown":False, "triple_tix":False})
@@ -244,49 +245,27 @@ def handle_input(ev):
         if cmd == "1": 
             n["last_msg"] = f"CAMS: Vent is {n['endo']}/5 full. Corruption Level: {n['corrupt']}."
         elif cmd == "2": 
-            if n["baby_idx"] == 4:
-                n["last_msg"] = f"LISTEN: Heavy breathing heard at the {n['side']} DOOR!"
-            elif n["baby_idx"] >= 2:
-                n["last_msg"] = f"LISTEN: You hear metallic footsteps in the {n['path'][n['baby_idx']]}."
-            else:
-                n["last_msg"] = "LISTEN: The arcade is quiet..."
-        elif cmd == "3": 
-            n["l_door"] = not n["l_door"]; n["r_door"] = False
-            n["last_msg"] = "Left Door " + ("Closed" if n["l_door"] else "Opened")
-        elif cmd == "4": 
-            n["r_door"] = not n["r_door"]; n["l_door"] = False
-            n["last_msg"] = "Right Door " + ("Closed" if n["r_door"] else "Opened")
+            if n["baby_idx"] == 4: n["last_msg"] = f"LISTEN: Heavy breathing heard at the {n['side']} DOOR!"
+            elif n["baby_idx"] >= 2: n["last_msg"] = f"LISTEN: You hear metallic footsteps in the {n['path'][n['baby_idx']]}."
+            else: n["last_msg"] = "LISTEN: The arcade is quiet..."
+        elif cmd == "3": n["l_door"] = not n["l_door"]; n["r_door"] = False; n["last_msg"] = "Left Door " + ("Closed" if n["l_door"] else "Opened")
+        elif cmd == "4": n["r_door"] = not n["r_door"]; n["l_door"] = False; n["last_msg"] = "Right Door " + ("Closed" if n["r_door"] else "Opened")
         elif cmd == "5":
-            if n["endo"] >= 3: 
-                n["endo"] = 0; n["endo_wait"] = 0; play_sound(400, 100, 0.2, "sine")
-                n["last_msg"] = "VENT: Air flushed. Vent Endo cleared."
-            else: 
-                j_scare("endo") 
-                return
+            if n["endo"] >= 3: n["endo"] = 0; n["endo_wait"] = 0; play_sound(400, 100, 0.2, "sine"); n["last_msg"] = "VENT: Air flushed. Vent Endo cleared."
+            else: j_scare("endo"); return
         elif cmd == "6":
-            # Early Reset Check: Allow at 3/5 if owned, else wait for 5/5
-            limit = 3 if stats["sys_shutdown"] else 5
-            if n["corrupt"] >= limit: 
-                n["corrupt"] = 0; n["scrap"] = False; n["scrap_wait"] = 0
-                n["last_msg"] = "RESET: System rebooted. Corruption cleared."
-            else: 
-                j_scare("scrap")
-                return
-        else:
-            n["last_msg"] = "Waiting..."
+            limit = 2 if stats["sys_shutdown"] else 3
+            if n["corrupt"] >= limit: n["corrupt"] = 0; n["scrap"] = False; n["scrap_wait"] = 0; n["last_msg"] = "RESET: System rebooted. Corruption cleared."
+            else: j_scare("scrap"); return
+        else: n["last_msg"] = "Waiting..."
 
-        # AI LOGIC
         if n["scrap"]:
             n["scrap_wait"] += 1
             if n["scrap_wait"] == 1:
                 n["l_door"] = False; n["r_door"] = False; play_unlock()
                 n["last_msg"] = ">> CRITICAL: SECURITY DOORS UNLOCKED BY MALWARE <<"
-                if n["baby_idx"] == 4:
-                    j_scare("golden" if n["is_boss"] else "baby")
-                    return
-            if n["scrap_wait"] >= 2: 
-                j_scare("golden" if n["is_boss"] else "scrap")
-                return
+                if n["baby_idx"] == 4: j_scare("golden" if n["is_boss"] else "baby"); return
+            if n["scrap_wait"] >= 2: j_scare("golden" if n["is_boss"] else "scrap"); return
         elif random.randint(1, 15) < n["diff"]:
             n["corrupt"] += 1
             if n["corrupt"] >= 5: n["scrap"] = True
@@ -296,23 +275,22 @@ def handle_input(ev):
             dr = n["l_door"] if n["side"] == "Left" else n["r_door"]
             if not dr: 
                 n["baby_wait"] += 1
-                if n["baby_wait"] >= 2: 
-                    j_scare("golden" if n["is_boss"] else "baby")
-                    return
+                if n["baby_wait"] >= 2: j_scare("golden" if n["is_boss"] else "baby"); return
             else:
                 n["baby_wait"] += 1; play_bang()
-                if n["baby_wait"] >= 4: 
-                    n["baby_idx"] = 0; n["baby_wait"] = 0; n["side"] = random.choice(["Left", "Right"])
-                    play_retreat()
-        elif random.randint(1, 10) < n["diff"]: n["baby_idx"] += 1
+                if n["baby_wait"] >= 4: n["baby_idx"] = 0; n["baby_wait"] = 0; n["side"] = random.choice(["Left", "Right"]); play_retreat()
+        elif random.randint(1, 10) < n["diff"]: 
+            is_shortcut_night = (stats["night"] >= 4 or n["is_boss"] or n["diff"] >= 6)
+            if is_shortcut_night and n["baby_idx"] == 2:
+                if stats["vent_stopper"]: pass
+                else: n["baby_idx"] = 4; n["shortcut_alert"] = True; play_sound(200, 100, 0.4, "sine")
+            else: n["baby_idx"] += 1
         
         if n["endo"] >= 5:
             n["endo_wait"] += 1
-            if n["endo_wait"] >= 2: 
-                j_scare("endo")
-                return
+            if n["endo_wait"] >= 2: j_scare("endo"); return
         else:
-            if not stats["vent_stopper"] and random.randint(1, 15) < n["diff"]: n["endo"] += 1
+            if random.randint(1, 15) < n["diff"]: n["endo"] += 1
 
         if n["pwr"] <= 0: j_scare("boss_power" if n["is_boss"] else "power")
         elif n["hr"] == 6: win_screen()
