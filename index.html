@@ -288,6 +288,16 @@ def victory():
     play_sound(440, 880, 1.5, "sine", 0.3)
     
     def conclude():
+        # Calculate earnings before resetting the booster
+        earned_tix = 300 if stats["triple_tix"] else 150
+        
+        # Reset Consumables (Make them one-time use)
+        stats["extra_power"] = False
+        stats["vent_stopper"] = False
+        stats["vent_alarm"] = False
+        stats["sys_shutdown"] = False
+        stats["triple_tix"] = False
+
         if n_data["is_boss"]:
             stats["beat_boss"] = True
             stats["custom_unlocked"] = True
@@ -295,7 +305,7 @@ def victory():
             timer.set_timeout(show_menu, 5000)
         else:
             stats["night"] += 1
-            stats["tix"] += 300 if stats["triple_tix"] else 150
+            stats["tix"] += earned_tix
             show_menu()
     
     timer.set_timeout(conclude, 4000)
