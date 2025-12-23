@@ -11,9 +11,10 @@
         #input-area { display: flex; width: 95%; max-width: 600px; margin-bottom: 10px; z-index: 100; }
         #user-input { flex-grow: 1; background: #111; color: #FFFB00; border: 2px solid #FFFB00; padding: 12px; font-size: 18px; outline: none; border-radius: 0; }
         #send-btn { background: #FFFB00; color: black; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; }
-        #game-output { background-color: #000; color: #FFFB00; padding: 15px; width: 95%; max-width: 600px; white-space: pre-wrap; font-size: 16px; font-weight: bold; border: 2px solid #FFFB00; flex-grow: 1; overflow-y: auto; box-shadow: inset 0 0 15px #FFFB0033; }
+        #game-output { background-color: #000; color: #FFFB00; padding: 15px; width: 95%; max-width: 600px; white-space: pre-wrap; font-size: 16px; font-weight: bold; border: 2px solid #FFFB00; flex-grow: 1; overflow-y: auto; box-shadow: inset 0 0 15px #FFFB0033; transition: color 0.1s; }
         .beating-heart { font-size: 45px; color: #FFFB00; display: block; margin: 20px auto; animation: beat 0.8s infinite; text-align: center; }
         .victory-flash { animation: flash 0.4s infinite; font-size: 50px; text-align: center; margin-top: 40px; font-weight: bold; }
+        .corrupt-flicker { color: #FF0000 !important; text-shadow: 0px 0px 10px #FF0000; }
         @keyframes flash { 0%, 100% { color: #FFFB00; opacity: 1; } 50% { color: #FFF; opacity: 0.5; } }
         @keyframes beat { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
     </style>
@@ -50,7 +51,6 @@ if "starrs_save" in window.localStorage:
     except:
         pass
 
-# --- CORRECTED DIALOGUE ---
 quotes = {
     "baby": ["Enjoy your last lullaby...", "The star has to outshine the rest..."],
     "scrap": ["I'll turn you into garbage.!!", "Who's the real trash now...?"],
@@ -79,19 +79,28 @@ def play_sound(f_start, f_end, dur, wav="sawtooth", vol=0.2):
     except: pass
 
 def play_screech():
-    play_sound(2000, 100, 0.5, "sawtooth", 0.4)
-    play_sound(1500, 50, 0.5, "square", 0.3)
+    play_sound(2200, 100, 0.6, "sawtooth", 0.5)
+    play_sound(1600, 40, 0.6, "square", 0.4)
 
 def play_golden_screech():
-    play_sound(150, 10, 1.5, "sawtooth", 0.6)
-    play_sound(100, 5, 1.5, "square", 0.5)
-    play_sound(200, 20, 0.8, "sawtooth", 0.4)
+    play_sound(120, 10, 1.8, "sawtooth", 0.7)
+    play_sound(80, 5, 1.8, "square", 0.6)
+
+def play_retreat():
+    play_sound(300, 100, 0.5, "sine", 0.2) 
 
 def play_bang():
     for i in [0, 0.15]: play_sound(70, 60, 0.1, "square", 0.4)
 
 def play_unlock():
     play_sound(600, 100, 0.3, "sawtooth", 0.5)
+
+def trigger_flicker():
+    out = document["game-output"]
+    out.classList.add("corrupt-flicker")
+    def remove_flicker():
+        out.classList.remove("corrupt-flicker")
+    timer.set_timeout(remove_flicker, 150)
 
 def show_menu():
     global state
@@ -174,9 +183,9 @@ def handle_input(ev):
         if cmd == "1": start_night()
         elif cmd == "2":
             state = "SHOP"
-            document["game-output"].text = f"\nTix: {stats['tix']}\n1)Pwr 2)Stop 3)Alarm 4)Reset 5)3xTix 6)BACK"
+            document["game-output"].text = f"\nTix: {stats['tix']}\n1)Extra Power 2)Stop 3)Alarm 4)Reset 5)3xTix 6)BACK"
         elif cmd == "3":
-            document["game-output"].text = f"\n- LOADOUT -\nPower: {stats['extra_power']}\nVent Stopper: {stats['vent_stopper']}\n\nType 0 to go back."
+            document["game-output"].text = f"\n- LOADOUT -\nExtra Power: {stats['extra_power']}\nVent Stopper: {stats['vent_stopper']}\n\nType 0 to go back."
             state = "LOADOUT"
         elif cmd == "4": 
             if window.confirm("Reset all data?"):
@@ -223,43 +232,58 @@ def handle_input(ev):
             if n["endo"] >= 3: 
                 n["endo"] = 0; n["endo_wait"] = 0; play_sound(400, 100, 0.2, "sine")
                 n["last_msg"] = "VENT: Air flushed. Vent Endo cleared."
-            else: j_scare("endo")
+            else: 
+                j_scare("endo") 
+                return
         elif cmd == "6":
             req = 3 if stats["sys_shutdown"] else 4
             if n["corrupt"] >= req: 
                 n["corrupt"] = 0; n["scrap"] = False; n["scrap_wait"] = 0
                 n["last_msg"] = "RESET: System rebooted. Corruption cleared."
-            else: n["last_msg"] = "RESET: System stable."
+            else: 
+                j_scare("scrap")
+                return
         else:
             n["last_msg"] = "Waiting..."
 
         # AI LOGIC
-        # Starr Baby (Wait 2 turns)
-        if n["baby_idx"] == 4:
-            dr = n["l_door"] if n["side"] == "Left" else n["r_door"]
-            if not dr: 
-                n["baby_wait"] += 1
-                if n["baby_wait"] >= 2: j_scare("golden" if n["is_boss"] else "baby")
-            else:
-                n["baby_wait"] += 1; play_bang()
-                if n["baby_wait"] >= 4: n["baby_idx"] = 0; n["baby_wait"] = 0; n["side"] = random.choice(["Left", "Right"])
-        elif random.randint(1, 10) < n["diff"]: n["baby_idx"] += 1
-        
-        # Scrap Starr (Unlock, then Kill)
+        # Scrap Starr Logic First
         if n["scrap"]:
             n["scrap_wait"] += 1
             if n["scrap_wait"] == 1:
                 n["l_door"] = False; n["r_door"] = False; play_unlock()
                 n["last_msg"] = ">> CRITICAL: SECURITY DOORS UNLOCKED BY MALWARE <<"
-            if n["scrap_wait"] >= 2: j_scare("golden" if n["is_boss"] else "scrap")
+                if n["baby_idx"] == 4:
+                    j_scare("golden" if n["is_boss"] else "baby")
+                    return
+            if n["scrap_wait"] >= 2: 
+                j_scare("golden" if n["is_boss"] else "scrap")
+                return
         elif random.randint(1, 15) < n["diff"]:
-            n["corrupt"] += 1
+            n["corrupt"] += 1; trigger_flicker()
             if n["corrupt"] >= 5: n["scrap"] = True
 
-        # Vent Endo (Wait 2 turns)
+        # Starr Baby Logic (Wait exactly 2 turns)
+        if n["baby_idx"] == 4:
+            dr = n["l_door"] if n["side"] == "Left" else n["r_door"]
+            if not dr: 
+                n["baby_wait"] += 1
+                if n["baby_wait"] >= 2: 
+                    j_scare("golden" if n["is_boss"] else "baby")
+                    return
+            else:
+                n["baby_wait"] += 1; play_bang()
+                if n["baby_wait"] >= 4: 
+                    n["baby_idx"] = 0; n["baby_wait"] = 0; n["side"] = random.choice(["Left", "Right"])
+                    play_retreat()
+        elif random.randint(1, 10) < n["diff"]: n["baby_idx"] += 1
+        
+        # Vent Endo Logic (Wait exactly 2 turns)
         if n["endo"] >= 5:
             n["endo_wait"] += 1
-            if n["endo_wait"] >= 2: j_scare("endo")
+            if n["endo_wait"] >= 2: 
+                j_scare("endo")
+                return
         else:
             if not stats["vent_stopper"] and random.randint(1, 15) < n["diff"]: n["endo"] += 1
 
