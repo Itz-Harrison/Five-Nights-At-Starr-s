@@ -11,10 +11,15 @@
         #input-area { display: flex; width: 95%; max-width: 600px; margin-bottom: 10px; z-index: 100; }
         #user-input { flex-grow: 1; background: #111; color: #FFFB00; border: 2px solid #FFFB00; padding: 12px; font-size: 18px; outline: none; border-radius: 0; }
         #send-btn { background: #FFFB00; color: black; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; }
-        #game-output { background-color: #000; color: #FFFB00; padding: 15px; width: 95%; max-width: 600px; white-space: pre-wrap; font-size: 16px; font-weight: bold; border: 2px solid #FFFB00; flex-grow: 1; overflow-y: auto; box-shadow: inset 0 0 15px #FFFB0033; transition: color 0.1s; }
+        #game-output { background-color: #000; color: #FFFB00; padding: 15px; width: 95%; max-width: 600px; white-space: pre-wrap; font-size: 16px; font-weight: bold; border: 2px solid #FFFB00; flex-grow: 1; overflow-y: auto; box-shadow: inset 0 0 15px #FFFB0033; transition: all 0.1s; }
+        
+        /* SPECIFIC VISUAL UPDATES */
+        .corrupt-flicker { color: #00FF00 !important; text-shadow: 0px 0px 10px #00FF00; }
+        .perm-corrupt { color: #00FF00 !important; border-color: #00FF00 !important; box-shadow: inset 0 0 20px #00FF0077 !important; }
+        .vent-warning { color: #FF0000 !important; text-shadow: 0px 0px 8px #FF0000; font-weight: bold; }
+
         .beating-heart { font-size: 45px; color: #FFFB00; display: block; margin: 20px auto; animation: beat 0.8s infinite; text-align: center; }
         .victory-flash { animation: flash 0.4s infinite; font-size: 50px; text-align: center; margin-top: 40px; font-weight: bold; }
-        .corrupt-flicker { color: #FF0000 !important; text-shadow: 0px 0px 10px #FF0000; }
         @keyframes flash { 0%, 100% { color: #FFFB00; opacity: 1; } 50% { color: #FFF; opacity: 0.5; } }
         @keyframes beat { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
     </style>
@@ -33,7 +38,7 @@
     </div>
 
     <script type="text/python">
-from browser import document, window, timer
+from browser import document, window, timer, html
 import random
 import json
 
@@ -95,18 +100,17 @@ def play_bang():
 def play_unlock():
     play_sound(600, 100, 0.3, "sawtooth", 0.5)
 
-def trigger_flicker():
+def trigger_green_flicker():
     out = document["game-output"]
     out.classList.add("corrupt-flicker")
-    def remove_flicker():
-        out.classList.remove("corrupt-flicker")
-    timer.set_timeout(remove_flicker, 150)
+    timer.set_timeout(lambda: out.classList.remove("corrupt-flicker"), 150)
 
 def show_menu():
     global state
     state = "MENU"
     save_game()
     out = document["game-output"]
+    out.classList.remove("perm-corrupt")
     out.html = '<div style="text-align:center;"><div class="beating-heart">💛</div></div>'
     header = f"\nTickets: {stats['tix']} | Progress: Night {stats['night']}\n"
     if stats['beat_boss']: header += "⭐ STATUS: GOLDEN CHAMPION ⭐\n"
@@ -136,21 +140,30 @@ def start_night(mode="REGULAR", d_val=0):
 def update_night():
     n = n_data
     out = document["game-output"]
-    out.text = f"\n[{n['hr']} AM] [PWR: {int(n['pwr'])}%]\n"
-    out.text += "-"*25 + "\n"
-    out.text += f"> {n['last_msg']}\n"
-    out.text += "-"*25 + "\n"
     
+    # PERMANENT GREEN AT 5/5
+    if n["corrupt"] >= 5: out.classList.add("perm-corrupt")
+    else: out.classList.remove("perm-corrupt")
+    
+    # Using html.DIV and fragments to support RED ALARM text
+    out.html = ""
+    top_display = f"[{n['hr']} AM] [PWR: {int(n['pwr'])}%]\n" + "-"*25 + f"\n> {n['last_msg']}\n" + "-"*25 + "\n"
+    out <= top_display
+
     if stats["vent_alarm"] and n["endo"] >= 4:
-        out.text += ">> [!] VENT ALARM BEEPING [!] <<\n"
+        # RED ALARM TEXT
+        alarm = html.SPAN(">> [!] VENT ALARM BEEPING [!] <<\n", ClassName="vent-warning")
+        out <= alarm
         play_sound(880, 880, 0.1, "sine", 0.1)
     
     status = []
     if n["l_door"]: status.append("L-DOOR CLOSED")
     if n["r_door"]: status.append("R-DOOR CLOSED")
-    if status: out.text += "STATUS: " + " & ".join(status) + "\n"
+    status_text = ""
+    if status: status_text = "STATUS: " + " & ".join(status) + "\n"
     
-    out.text += "\n0:Wait 1:Cams (Vent/Sys) 2:Listen (Starr Baby) 3:L-Door 4:R-Door 5:Vent 6:Reset"
+    bottom_display = status_text + "\n0:Wait 1:Cams (Vent/Sys) 2:Listen (Starr Baby) 3:L-Door 4:R-Door 5:Vent 6:Reset"
+    out <= bottom_display
 
 def j_scare(cat):
     if cat == "golden" or cat == "boss_power":
@@ -236,8 +249,8 @@ def handle_input(ev):
                 j_scare("endo") 
                 return
         elif cmd == "6":
-            req = 3 if stats["sys_shutdown"] else 4
-            if n["corrupt"] >= req: 
+            # FIXED: WORKS AT 3/5 REGARDLESS OF UPGRADES
+            if n["corrupt"] >= 3: 
                 n["corrupt"] = 0; n["scrap"] = False; n["scrap_wait"] = 0
                 n["last_msg"] = "RESET: System rebooted. Corruption cleared."
             else: 
@@ -247,7 +260,6 @@ def handle_input(ev):
             n["last_msg"] = "Waiting..."
 
         # AI LOGIC
-        # Scrap Starr Logic First
         if n["scrap"]:
             n["scrap_wait"] += 1
             if n["scrap_wait"] == 1:
@@ -260,10 +272,10 @@ def handle_input(ev):
                 j_scare("golden" if n["is_boss"] else "scrap")
                 return
         elif random.randint(1, 15) < n["diff"]:
-            n["corrupt"] += 1; trigger_flicker()
+            n["corrupt"] += 1
             if n["corrupt"] >= 5: n["scrap"] = True
+            else: trigger_green_flicker()
 
-        # Starr Baby Logic (Wait exactly 2 turns)
         if n["baby_idx"] == 4:
             dr = n["l_door"] if n["side"] == "Left" else n["r_door"]
             if not dr: 
@@ -278,7 +290,6 @@ def handle_input(ev):
                     play_retreat()
         elif random.randint(1, 10) < n["diff"]: n["baby_idx"] += 1
         
-        # Vent Endo Logic (Wait exactly 2 turns)
         if n["endo"] >= 5:
             n["endo_wait"] += 1
             if n["endo_wait"] >= 2: 
